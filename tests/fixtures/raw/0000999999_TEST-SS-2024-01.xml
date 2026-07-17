@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+<proxyVoteTable>
+  <voteRecord>
+    <issuerName>Amazon.com Inc</issuerName>
+    <cusip>023135106</cusip>
+    <voteDescription>Elect Director Jeffrey Blackburn</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Amazon.com Inc</issuerName>
+    <cusip>023135106</cusip>
+    <voteDescription>Approve omnibus stock incentive plan</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Amazon.com Inc</issuerName>
+    <cusip>023135106</cusip>
+    <voteDescription>Report on political contributions and lobbying</voteDescription>
+    <voteSource>Shareholder</voteSource>
+    <managementRecommendation>Against</managementRecommendation>
+    <howVoted>Against</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Amazon.com Inc</issuerName>
+    <cusip>023135106</cusip>
+    <voteDescription>Approve the minutes of the prior meeting</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+</proxyVoteTable>
+</edgarSubmission>

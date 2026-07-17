@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IIVAS — Institutional Investor Voting Alignment Score</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#161b22; --border:#272e3a; --ink:#e6edf3;
+    --muted:#9aa7b4; --vanguard:#C8102E; --blackrock:#d9d9d9; --ss:#00c46a;
+    --accent:#4f9dff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:28px 32px 8px;border-bottom:1px solid var(--border)}
+  h1{margin:0;font-size:24px;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:14px;margin-top:6px;max-width:900px;line-height:1.5}
+  .banner{margin:16px 32px 0;padding:10px 14px;background:#241a00;border:1px solid #6b5300;
+          border-radius:8px;color:#ffd87a;font-size:13px}
+  .controls{display:flex;gap:18px;flex-wrap:wrap;padding:18px 32px 4px;align-items:center}
+  .controls label{font-size:13px;color:var(--muted);margin-right:6px}
+  select{background:var(--panel);color:var(--ink);border:1px solid var(--border);
+         border-radius:6px;padding:6px 10px;font-size:13px}
+  .kpis{display:flex;gap:16px;flex-wrap:wrap;padding:18px 32px}
+  .kpi{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--border);
+       border-radius:12px;padding:16px 18px}
+  .kpi .name{font-size:13px;color:var(--muted)}
+  .kpi .val{font-size:30px;font-weight:700;margin-top:6px}
+  .kpi .meta{font-size:12px;color:var(--muted);margin-top:4px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:8px 32px 40px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
+  .card h3{margin:10px 12px 0;font-size:15px}
+  .card p{margin:2px 12px 8px;font-size:12px;color:var(--muted)}
+  .full{grid-column:1/3}
+  footer{padding:18px 32px 36px;color:var(--muted);font-size:12px;border-top:1px solid var(--border)}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}.full{grid-column:1}}
+</style>
+</head>
+<body>
+<header>
+  <h1>IIVAS — Institutional Investor Voting Alignment Score</h1>
+  <div class="sub">Stewardship and governance preferences of Vanguard, BlackRock, and State Street,
+  derived from SEC Form N-PX proxy-voting disclosures. Higher score = more frequently votes
+  <em>with</em> management.</div>
+</header>
+
+<div class="banner">
+  Demo mode: the figures below are <strong>illustrative placeholder values</strong> so the dashboard renders
+  standalone. Replace <code>DATA</code> in this file with the CSV outputs from
+  <code>data/processed/</code> (produced by the pipeline) for live results.
+</div>
+
+<div class="controls">
+  <div><label for="yearSel">Year</label>
+    <select id="yearSel"></select></div>
+  <div><label for="catSel">Proposal category (heatmap focus)</label>
+    <select id="catSel">
+      <option value="all">All categories</option>
+      <option>Board Governance</option>
+      <option>Executive Compensation</option>
+      <option>ESG</option>
+      <option>Shareholder Rights</option>
+    </select></div>
+</div>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="grid">
+  <div class="card"><h3>IIVAS composite ranking</h3>
+    <p>Weighted 0–100 alignment score by manager (selected year).</p>
+    <div id="bar" style="height:340px"></div></div>
+  <div class="card"><h3>Sub-score profile</h3>
+    <p>Governance / Compensation / ESG / Management-alignment shape per manager.</p>
+    <div id="radar" style="height:340px"></div></div>
+  <div class="card full"><h3>Management-support rate over time (RQ6)</h3>
+    <p>Share of votes cast in line with management recommendation, by year.</p>
+    <div id="trend" style="height:340px"></div></div>
+  <div class="card full"><h3>Support rate by manager × category (RQ1–3)</h3>
+    <p>Darker green = more supportive of management in that category.</p>
+    <div id="heatmap" style="height:300px"></div></div>
+</div>
+
+<footer>
+  Data source: public SEC EDGAR Form N-PX. Research/educational use only; not investment advice.
+  Methodology: see <code>docs/METHODOLOGY.md</code>. &copy; 2026 IIVAS Project (MIT).
+</footer>
+
+<script>
+/* ---------------------------------------------------------------------
+   ILLUSTRATIVE DATA. Shape mirrors data/processed/*.csv.
+   Replace these objects with your pipeline output to go live.
+--------------------------------------------------------------------- */
+const MANAGERS = ["Vanguard","BlackRock","State Street"];
+const COLORS  = {"Vanguard":"#C8102E","BlackRock":"#cfd6dd","State Street":"#00c46a"};
+const YEARS   = [2019,2020,2021,2022,2023,2024];
+
+// per year -> per manager -> sub-scores (0-100) [placeholder]
+const DATA = {
+  2019:{Vanguard:[96,93,72,93],BlackRock:[95,90,70,92],"State Street":[94,88,75,91]},
+  2020:{Vanguard:[95,91,68,92],BlackRock:[94,88,67,91],"State Street":[93,85,73,90]},
+  2021:{Vanguard:[94,89,60,90],BlackRock:[92,84,58,88],"State Street":[91,82,66,88]},
+  2022:{Vanguard:[95,90,71,92],BlackRock:[93,87,55,89],"State Street":[92,84,63,89]},
+  2023:{Vanguard:[96,92,78,93],BlackRock:[94,89,60,90],"State Street":[93,86,66,90]},
+  2024:{Vanguard:[96,93,80,94],BlackRock:[95,90,62,91],"State Street":[94,87,68,91]}
+};
+const AXES = ["Governance","Compensation","ESG","Mgmt Alignment"];
+const WEIGHTS = [0.30,0.25,0.25,0.20];
+
+const composite = sub => sub.reduce((a,v,i)=>a+v*WEIGHTS[i],0);
+const layoutBase = {paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",
+  font:{color:"#e6edf3"},margin:{l:60,r:20,t:10,b:40}};
+
+function renderKPIs(year){
+  const el=document.getElementById("kpis"); el.innerHTML="";
+  MANAGERS.forEach(m=>{
+    const c=composite(DATA[year][m]).toFixed(1);
+    const prev = YEARS.includes(year-1)?composite(DATA[year-1][m]):null;
+    const delta = prev!==null?(c-prev).toFixed(1):"—";
+    const arrow = prev===null?"":(c-prev>=0?"▲":"▼");
+    el.insertAdjacentHTML("beforeend",
+      `<div class="kpi" style="border-left:4px solid ${COLORS[m]}">
+        <div class="name">${m}</div>
+        <div class="val">${c}</div>
+        <div class="meta">IIVAS composite · YoY ${arrow} ${delta}</div></div>`);
+  });
+}
+
+function renderBar(year){
+  const rows=MANAGERS.map(m=>({m,v:composite(DATA[year][m])})).sort((a,b)=>a.v-b.v);
+  Plotly.react("bar",[{
+    type:"bar",orientation:"h",
+    x:rows.map(r=>r.v),y:rows.map(r=>r.m),
+    marker:{color:rows.map(r=>COLORS[r.m])},
+    text:rows.map(r=>r.v.toFixed(1)),textposition:"outside"
+  }],{...layoutBase,xaxis:{range:[0,100],title:"IIVAS composite"}},{displayModeBar:false});
+}
+
+function renderRadar(year){
+  const traces=MANAGERS.map(m=>({
+    type:"scatterpolar",fill:"toself",name:m,
+    r:[...DATA[year][m],DATA[year][m][0]],
+    theta:[...AXES,AXES[0]],line:{color:COLORS[m]}
+  }));
+  Plotly.react("radar",traces,{...layoutBase,
+    polar:{bgcolor:"rgba(0,0,0,0)",radialaxis:{range:[0,100],color:"#9aa7b4"},
+           angularaxis:{color:"#9aa7b4"}},
+    legend:{orientation:"h",y:-0.1},margin:{l:40,r:40,t:10,b:40}},{displayModeBar:false});
+}
+
+function renderTrend(){
+  // management-alignment sub-score (index 3) as the support-rate proxy over time
+  const traces=MANAGERS.map(m=>({
+    type:"scatter",mode:"lines+markers",name:m,
+    x:YEARS,y:YEARS.map(y=>DATA[y][m][3]),line:{color:COLORS[m],width:3}
+  }));
+  Plotly.react("trend",traces,{...layoutBase,
+    yaxis:{title:"Support rate (0-100)",range:[80,100]},xaxis:{dtick:1},
+    legend:{orientation:"h",y:-0.2}},{displayModeBar:false});
+}
+
+function renderHeatmap(year,cat){
+  // z = [managers x categories(4)]
+  const z=MANAGERS.map(m=>DATA[year][m]);
+  const colIdx = cat==="all"?null:AXES.indexOf(cat==="Shareholder Rights"?"Governance":
+      cat==="Board Governance"?"Governance":cat==="Executive Compensation"?"Compensation":"ESG");
+  Plotly.react("heatmap",[{
+    type:"heatmap",z:z,x:AXES,y:MANAGERS,
+    colorscale:[[0,"#7a0a0a"],[0.5,"#c9b400"],[1,"#0a7a3a"]],zmin:40,zmax:100,
+    text:z.map(r=>r.map(v=>v.toFixed(0))),texttemplate:"%{text}",
+    colorbar:{title:"score"}
+  }],{...layoutBase,margin:{l:90,r:20,t:10,b:40},
+      annotations: colIdx===null?[]:[{x:AXES[colIdx],y:MANAGERS[0],text:"◀ focus",showarrow:false,
+        yshift:28,font:{color:"#ffd87a"}}]},{displayModeBar:false});
+}
+
+function refresh(){
+  const y=+document.getElementById("yearSel").value;
+  const c=document.getElementById("catSel").value;
+  renderKPIs(y);renderBar(y);renderRadar(y);renderTrend();renderHeatmap(y,c);
+}
+
+(function init(){
+  const ysel=document.getElementById("yearSel");
+  YEARS.forEach(y=>ysel.insertAdjacentHTML("beforeend",`<option ${y===2024?"selected":""}>${y}</option>`));
+  ysel.addEventListener("change",refresh);
+  document.getElementById("catSel").addEventListener("change",refresh);
+  refresh();
+})();
+</script>
+</body>
+</html>

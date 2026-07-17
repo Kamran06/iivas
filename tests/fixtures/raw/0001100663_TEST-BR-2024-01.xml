@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+<proxyVoteTable>
+  <voteRecord>
+    <issuerName>Microsoft Corp</issuerName>
+    <cusip>594918104</cusip>
+    <voteDescription>Elect Director Satya Nadella</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Microsoft Corp</issuerName>
+    <cusip>594918104</cusip>
+    <voteDescription>Advisory vote on executive compensation</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>Against</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Chevron Corp</issuerName>
+    <cusip>166764100</cusip>
+    <voteDescription>Report on human rights due diligence</voteDescription>
+    <voteSource>Shareholder</voteSource>
+    <managementRecommendation>Against</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Chevron Corp</issuerName>
+    <cusip>166764100</cusip>
+    <voteDescription>Eliminate supermajority voting requirement</voteDescription>
+    <voteSource>Shareholder</voteSource>
+    <managementRecommendation>Against</managementRecommendation>
+    <howVoted>Against</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+</proxyVoteTable>
+</edgarSubmission>

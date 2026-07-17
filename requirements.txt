@@ -1,0 +1,38 @@
+# ── Core data stack ────────────────────────────────────────────────
+pandas==2.2.2
+numpy==1.26.4
+scipy==1.13.1
+pyyaml==6.0.1
+
+# ── SEC EDGAR acquisition ──────────────────────────────────────────
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.2.2
+sec-edgar-downloader==5.0.3
+edgartools==3.5.0
+
+# ── Database ───────────────────────────────────────────────────────
+SQLAlchemy==2.0.31
+psycopg2-binary==2.9.9
+
+# ── NLP / classification ───────────────────────────────────────────
+scikit-learn==1.5.1
+nltk==3.8.1
+
+# ── Machine learning ───────────────────────────────────────────────
+xgboost==2.1.0
+shap==0.46.0
+imbalanced-learn==0.12.3
+
+# ── Visualisation ──────────────────────────────────────────────────
+matplotlib==3.9.1
+seaborn==0.13.2
+plotly==5.22.0
+kaleido==0.2.1          # static export of plotly figures
+
+# ── Tooling / QA ───────────────────────────────────────────────────
+python-dotenv==1.0.1
+tqdm==4.66.4
+pytest==8.2.2
+black==24.4.2
+ruff==0.5.1
