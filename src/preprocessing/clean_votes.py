@@ -31,6 +31,12 @@ MGMT_MAP = {
     "against": "Against", "a": "Against", "no": "Against",
     "none": "None", "n/a": "None", "": "None",
 }
+# N-PX voteSource uses ISSUER/SHAREHOLDER (real filings, verified run #3).
+SPONSOR_MAP = {
+    "issuer": "Management", "management": "Management",
+    "shareholder": "Shareholder", "security holder": "Shareholder",
+    "shareholder proposal": "Shareholder",
+}
 
 
 def _norm_token(value, mapping, default=None):
@@ -72,6 +78,9 @@ def run() -> None:
     df["vote_cast"] = df["vote_cast"].map(lambda v: _norm_token(v, VOTE_MAP, "Other"))
     df["management_recommendation"] = df["management_recommendation"].map(
         lambda v: _norm_token(v, MGMT_MAP, "None")
+    )
+    df["proposal_sponsor"] = df["proposal_sponsor"].map(
+        lambda v: _norm_token(v, SPONSOR_MAP, None)
     )
 
     # 2) Standardise issuer names (new column kept alongside the original).

@@ -79,6 +79,13 @@ def run() -> None:
     interim, processed = path("interim"), path("processed")
     df = read_df(interim / "votes_classified.parquet")
 
+    if df.empty:
+        raise SystemExit(
+            "[fatal] votes_classified is EMPTY — no votes survived parse/clean. "
+            "This usually means the parser did not match the filing XML layout. "
+            "Inspect a raw filing in data/raw/ before re-running."
+        )
+
     overall = compute_scores(df, ["filer"]).sort_values("iivas_composite", ascending=False)
     by_year = compute_scores(df, ["filer", "filing_year"])
     by_sector = compute_scores(df, ["filer"])  # placeholder; sector join done in EDA

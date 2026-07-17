@@ -45,7 +45,25 @@ def _xtext(node, tag: str, ns: dict | None = None) -> str | None:
 
 
 def parse_structured_xml(content: bytes, meta: dict) -> list[dict]:
-    """Parse the post-2024 structured N-PX voteTable XML."""
+    """
+    Parse the post-2024 structured N-PX voteTable XML.
+
+    Real-world layout (verified against live 2024/2025 filings in run #3):
+    issuer-level fields live on a parent <proxyTable> element; the nested
+    <voteRecord> carries only how the shares were voted:
+
+        <proxyVoteTable>
+          <proxyTable>
+            <issuerName>… <cusip>… <voteDescription>… <voteSource>…
+            <vote><voteRecord>
+              <howVoted>… <sharesVoted>… <managementRecommendation>…
+            </voteRecord></vote>
+          </proxyTable>
+        </proxyVoteTable>
+
+    A flat all-fields-on-voteRecord layout is kept as a fallback for variant
+    filings and our test fixtures.
+    """
     rows: list[dict] = []
     try:
         root = etree.fromstring(content)
@@ -57,30 +75,48 @@ def parse_structured_xml(content: bytes, meta: dict) -> list[dict]:
         if isinstance(el.tag, str) and "}" in el.tag:
             el.tag = el.tag.split("}", 1)[1]
 
+    def _row(issuer, cusip, ticker, text, sponsor, mgmt, vote_cast, shares):
+        return {
+            **meta,
+            "issuer_name": issuer, "cusip": cusip, "ticker": ticker,
+            "proposal_id": None, "proposal_text": text,
+            "proposal_sponsor": sponsor, "management_recommendation": mgmt,
+            "vote_cast": vote_cast, "shares_voted": shares,
+        }
+
+    tables = list(root.iter("proxyTable"))
+    if tables:
+        for t in tables:
+            issuer = _xtext(t, "issuerName")
+            cusip = _xtext(t, "cusip")
+            ticker = _xtext(t, "symbol") or _xtext(t, "ticker") or _xtext(t, "isin")
+            text = _xtext(t, "voteDescription") or _xtext(t, "proposalText")
+            sponsor = _xtext(t, "voteSource")
+            mgmt_tbl = _xtext(t, "managementRecommendation")
+            shares_tbl = _xtext(t, "sharesVoted")
+            recs = list(t.iter("voteRecord"))
+            if recs:
+                for rec in recs:
+                    rows.append(_row(
+                        issuer, cusip, ticker, text, sponsor,
+                        _xtext(rec, "managementRecommendation") or mgmt_tbl,
+                        _xtext(rec, "howVoted") or _xtext(rec, "vote"),
+                        _xtext(rec, "sharesVoted") or shares_tbl))
+            else:  # some filers report the vote at table level
+                rows.append(_row(issuer, cusip, ticker, text, sponsor,
+                                 mgmt_tbl, _xtext(t, "howVoted"), shares_tbl))
+        return rows
+
+    # Fallback: flat layout with everything on voteRecord.
     for rec in root.iter("voteRecord"):
-        # A voteRecord may contain one or more voteTableRow/voteCategory items.
-        issuer = _xtext(rec, "issuerName")
-        cusip = _xtext(rec, "cusip")
-        ticker = _xtext(rec, "ticker") or _xtext(rec, "isin")
-        proposal_text = _xtext(rec, "voteDescription") or _xtext(rec, "proposalText")
-        sponsor = _xtext(rec, "voteSource") or _xtext(rec, "proposalSponsor")
-        mgmt = _xtext(rec, "managementRecommendation")
-        vote_cast = _xtext(rec, "howVoted") or _xtext(rec, "vote")
-        shares = _xtext(rec, "sharesVoted") or _xtext(rec, "votedShares")
-        rows.append(
-            {
-                **meta,
-                "issuer_name": issuer,
-                "cusip": cusip,
-                "ticker": ticker,
-                "proposal_id": None,
-                "proposal_text": proposal_text,
-                "proposal_sponsor": sponsor,
-                "management_recommendation": mgmt,
-                "vote_cast": vote_cast,
-                "shares_voted": shares,
-            }
-        )
+        rows.append(_row(
+            _xtext(rec, "issuerName"), _xtext(rec, "cusip"),
+            _xtext(rec, "ticker") or _xtext(rec, "isin"),
+            _xtext(rec, "voteDescription") or _xtext(rec, "proposalText"),
+            _xtext(rec, "voteSource") or _xtext(rec, "proposalSponsor"),
+            _xtext(rec, "managementRecommendation"),
+            _xtext(rec, "howVoted") or _xtext(rec, "vote"),
+            _xtext(rec, "sharesVoted") or _xtext(rec, "votedShares")))
     return rows
 
 
