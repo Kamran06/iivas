@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+<proxyVoteTable>
+  <voteRecord>
+    <issuerName>Apple Inc</issuerName>
+    <cusip>037833100</cusip>
+    <voteDescription>Elect Director Arthur Levinson</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Apple Inc</issuerName>
+    <cusip>037833100</cusip>
+    <voteDescription>Advisory vote on executive compensation (say-on-pay)</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Apple Inc</issuerName>
+    <cusip>037833100</cusip>
+    <voteDescription>Report on climate change and greenhouse gas reduction targets</voteDescription>
+    <voteSource>Shareholder</voteSource>
+    <managementRecommendation>Against</managementRecommendation>
+    <howVoted>Against</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Exxon Mobil Corp</issuerName>
+    <cusip>30231G102</cusip>
+    <voteDescription>Adopt proxy access bylaw</voteDescription>
+    <voteSource>Shareholder</voteSource>
+    <managementRecommendation>Against</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Exxon Mobil Corp</issuerName>
+    <cusip>30231G102</cusip>
+    <voteDescription>Ratify PricewaterhouseCoopers as auditors</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>Abstain</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+</proxyVoteTable>
+</edgarSubmission>

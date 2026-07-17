@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+*.local.yaml
+
+# Data (keep folders, ignore large/raw payloads)
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+*.parquet
+*.pkl
+*.joblib
+
+# SEC downloader cache
+sec-edgar-filings/
+
+# Outputs
+reports/figures/*.png
+reports/figures/*.html
+!reports/figures/.gitkeep
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,103 @@
+# =====================================================================
+# IIVAS – central configuration
+# All modules read from here so there are no hard-coded paths or magic
+# numbers scattered across the codebase.
+# =====================================================================
+
+project:
+  name: "Institutional Investor Voting Alignment Score"
+  short: "IIVAS"
+  random_seed: 42
+
+# ---------------------------------------------------------------------
+# SEC EDGAR access. The User-Agent string is MANDATORY per SEC fair-access
+# policy: it must identify you and include a contact email, otherwise EDGAR
+# returns HTTP 403. Max 10 requests/second.
+# ---------------------------------------------------------------------
+sec:
+  # Read from the SEC_USER_AGENT env var (.env locally, CI secret in Actions);
+  # falls back to the literal below. MUST contain a real contact email.
+  user_agent: "${SEC_USER_AGENT:-IIVAS Research your_name your_email@example.com}"
+  base_submissions_url: "https://data.sec.gov/submissions/CIK{cik}.json"
+  archives_base: "https://www.sec.gov/Archives/edgar/data"
+  rate_limit_per_sec: 8          # stay below the 10/s ceiling
+  form_type: "N-PX"
+  start_year: 2024
+  end_year: 2025
+
+# ---------------------------------------------------------------------
+# Filers analysed.
+#
+# IMPORTANT (verified against data.sec.gov, 2026-07): full N-PX voting
+# records are filed by the registered FUND companies (trusts), not the
+# parent/adviser. E.g. CIK 0000102909 = "VANGUARD GROUP INC" (the adviser,
+# a 13F filer) and 0000093751 = "STATE STREET CORP" (the holding company);
+# neither is where the fund-level votes live. Each family files through
+# MANY trusts, so filers are defined as name-match patterns and the
+# discovery module (src/data_acquisition/filer_discovery.py) enumerates
+# the actual N-PX filer CIKs from EDGAR's quarterly form indexes.
+#
+# seed_ciks are known fund registrants (entity names verified via the
+# submissions API): Vanguard Index Funds and iShares Trust. The discovery
+# step extends these lists automatically.
+# ---------------------------------------------------------------------
+filers:
+  - name: "Vanguard"
+    name_patterns: ["(?i)\\bvanguard\\b"]
+    seed_ciks: ["0000036405"]       # VANGUARD INDEX FUNDS (verified)
+  - name: "BlackRock"
+    name_patterns: ["(?i)\\bblackrock\\b", "(?i)\\bishares\\b"]
+    seed_ciks: ["0001100663", "0001761055"]  # iSHARES TRUST, BlackRock ETF Trust (verified)
+  - name: "State Street"
+    name_patterns: ["(?i)\\bstate street\\b", "(?i)\\bspdr\\b", "(?i)\\bssga\\b"]
+    seed_ciks: []                    # populated by filer_discovery.py
+
+# ---------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------
+paths:
+  raw: "data/raw"
+  interim: "data/interim"
+  processed: "data/processed"
+  figures: "reports/figures"
+  models: "models"
+
+# ---------------------------------------------------------------------
+# PostgreSQL connection. Override with environment variables in .env.
+# ---------------------------------------------------------------------
+database:
+  host: "${DB_HOST:-localhost}"
+  port: 5432
+  dbname: "iivas"
+  user: "${DB_USER:-iivas}"
+  password: "${DB_PASSWORD:-}"
+  schema: "public"
+
+# ---------------------------------------------------------------------
+# Proposal taxonomy used by the rule-based + ML classifiers
+# ---------------------------------------------------------------------
+proposal_categories:
+  - "ESG"
+  - "Executive Compensation"
+  - "Board Governance"
+  - "Shareholder Rights"
+  - "Other"
+
+# ---------------------------------------------------------------------
+# IIVAS metric weights (composite). Must sum to 1.0.
+# Justification in docs/METHODOLOGY.md §6.
+# ---------------------------------------------------------------------
+iivas_weights:
+  governance: 0.30
+  compensation: 0.25
+  esg: 0.25
+  management_alignment: 0.20
+
+# ---------------------------------------------------------------------
+# Modelling
+# ---------------------------------------------------------------------
+modeling:
+  target: "support_management"
+  test_size: 0.25
+  cv_folds: 5
+  n_jobs: -1

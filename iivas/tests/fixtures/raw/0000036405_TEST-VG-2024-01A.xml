@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+<proxyVoteTable>
+  <voteRecord>
+    <issuerName>Apple Inc</issuerName>
+    <cusip>037833100</cusip>
+    <voteDescription>Elect Director Arthur Levinson</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+  <voteRecord>
+    <issuerName>Apple Inc</issuerName>
+    <cusip>037833100</cusip>
+    <voteDescription>Advisory vote on executive compensation (say-on-pay)</voteDescription>
+    <voteSource>Management</voteSource>
+    <managementRecommendation>For</managementRecommendation>
+    <howVoted>For</howVoted>
+    <sharesVoted>1000000</sharesVoted>
+  </voteRecord>
+</proxyVoteTable>
+</edgarSubmission>

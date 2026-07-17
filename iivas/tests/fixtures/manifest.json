@@ -1,0 +1,52 @@
+[
+  {
+    "filer": "Vanguard",
+    "cik": "0000036405",
+    "year": 2024,
+    "accession": "TEST-VG-2024-01",
+    "accession_nodash": "TESTVG202401",
+    "filing_date": "2024-08-30",
+    "primary_document": "0000036405_TEST-VG-2024-01.xml",
+    "local_path": "/sessions/eager-optimistic-lamport/mnt/outputs/iivas/tests/fixtures/raw/0000036405_TEST-VG-2024-01.xml"
+  },
+  {
+    "filer": "Vanguard",
+    "cik": "0000036405",
+    "year": 2024,
+    "accession": "TEST-VG-2024-01A",
+    "accession_nodash": "TESTVG202401A",
+    "filing_date": "2024-08-30",
+    "primary_document": "0000036405_TEST-VG-2024-01A.xml",
+    "local_path": "/sessions/eager-optimistic-lamport/mnt/outputs/iivas/tests/fixtures/raw/0000036405_TEST-VG-2024-01A.xml"
+  },
+  {
+    "filer": "Vanguard",
+    "cik": "0000036405",
+    "year": 2025,
+    "accession": "TEST-VG-2025-01",
+    "accession_nodash": "TESTVG202501",
+    "filing_date": "2025-08-30",
+    "primary_document": "0000036405_TEST-VG-2025-01.xml",
+    "local_path": "/sessions/eager-optimistic-lamport/mnt/outputs/iivas/tests/fixtures/raw/0000036405_TEST-VG-2025-01.xml"
+  },
+  {
+    "filer": "BlackRock",
+    "cik": "0001100663",
+    "year": 2024,
+    "accession": "TEST-BR-2024-01",
+    "accession_nodash": "TESTBR202401",
+    "filing_date": "2024-08-30",
+    "primary_document": "0001100663_TEST-BR-2024-01.xml",
+    "local_path": "/sessions/eager-optimistic-lamport/mnt/outputs/iivas/tests/fixtures/raw/0001100663_TEST-BR-2024-01.xml"
+  },
+  {
+    "filer": "State Street",
+    "cik": "0000999999",
+    "year": 2024,
+    "accession": "TEST-SS-2024-01",
+    "accession_nodash": "TESTSS202401",
+    "filing_date": "2024-08-30",
+    "primary_document": "0000999999_TEST-SS-2024-01.xml",
+    "local_path": "/sessions/eager-optimistic-lamport/mnt/outputs/iivas/tests/fixtures/raw/0000999999_TEST-SS-2024-01.xml"
+  }
+]
