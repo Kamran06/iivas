@@ -38,7 +38,11 @@ SUBMISSIONS_URL = CONFIG["sec"]["base_submissions_url"]
 HEADERS = {"User-Agent": CONFIG["sec"]["user_agent"]}
 RATE = CONFIG["sec"]["rate_limit_per_sec"]
 FORM = CONFIG["sec"]["form_type"]
-START, END = CONFIG["sec"]["start_year"], CONFIG["sec"]["end_year"]
+from datetime import date as _date
+START = CONFIG["sec"]["start_year"]
+# Self-extending window: scheduled future runs automatically include
+# the current filing year without config edits.
+END = max(CONFIG["sec"]["end_year"], _date.today().year)
 _SLEEP = 1.0 / max(RATE, 1)
 
 

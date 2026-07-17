@@ -78,7 +78,9 @@ def parse_form_idx(text: str) -> list[dict]:
 
 
 def discover() -> dict[str, list[dict]]:
-    start, end = CONFIG["sec"]["start_year"], CONFIG["sec"]["end_year"]
+    from datetime import date as _date
+    start = CONFIG["sec"]["start_year"]
+    end = max(CONFIG["sec"]["end_year"], _date.today().year)  # self-extending
     npx_rows: list[dict] = []
     # Q3 catches the 31-Aug season; Q1 sweeps amendments/late filings.
     for year in range(start, end + 1):
