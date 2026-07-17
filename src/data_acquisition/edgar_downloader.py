@@ -104,9 +104,15 @@ def download_filing(cik: str, filing: dict, dest: Path) -> Path:
     """Download the primary document for one filing to dest. Returns the path."""
     cik_int = str(int(cik))  # archives path uses the un-padded integer CIK
     base = CONFIG["sec"]["archives_base"]
-    url = f"{base}/{cik_int}/{filing['accession_nodash']}/{filing['primary_document']}"
+    # For structured N-PX, EDGAR's primaryDocument is often an XSL-viewer path
+    # like 'xslN-PX_X01/primary_doc.xml'. Strip the viewer prefix so we fetch
+    # the RAW XML document, and flatten any remaining '/' so the local
+    # filename never points into a non-existent subdirectory.
+    primary = filing["primary_document"].split("/")[-1]
+    url = f"{base}/{cik_int}/{filing['accession_nodash']}/{primary}"
     resp = _get(url)
-    out_path = dest / f"{cik.zfill(10)}_{filing['accession']}_{filing['primary_document']}"
+    safe_name = f"{cik.zfill(10)}_{filing['accession']}_{primary}".replace("/", "_")
+    out_path = dest / safe_name
     out_path.write_bytes(resp.content)
     return out_path
 
