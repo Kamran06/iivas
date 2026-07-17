@@ -89,8 +89,9 @@ def parse_legacy_html(content: bytes, meta: dict) -> list[dict]:
     rows: list[dict] = []
     try:
         tables = pd.read_html(content)
-    except ValueError:
-        return rows
+    except Exception:  # noqa: BLE001 — no tables, bad markup, or missing
+        return rows     # optional parser dep: skip this filing, never crash
+                        # a multi-hour run over one document.
 
     # Heuristic: keep tables that look like vote tables (have a 'proposal'
     # and a 'vote' column after normalising headers).
