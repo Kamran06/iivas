@@ -104,18 +104,49 @@ def list_npx_accessions(submissions: dict) -> list[dict]:
     return out
 
 
+def _pick_vote_document(cik_int: str, accession_nodash: str, primary: str) -> str:
+    """
+    Return the filename of the document that actually contains the votes.
+
+    Verified against live filings (run #4): for structured N-PX,
+    'primary_doc.xml' is only the COVER PAGE (registrant info, signatures);
+    the proxy vote table is a separate exhibit XML in the same accession
+    folder — the same pattern as 13F's infotable. We list the accession via
+    index.json and prefer (a) XMLs whose name suggests a vote table, then
+    (b) the largest other XML, falling back to the primary document.
+    """
+    import re as _re
+
+    base = CONFIG["sec"]["archives_base"]
+    try:
+        idx = _get(f"{base}/{cik_int}/{accession_nodash}/index.json").json()
+        items = idx.get("directory", {}).get("item", [])
+        xmls = [i for i in items
+                if str(i.get("name", "")).lower().endswith(".xml")
+                and i.get("name") != primary]
+        if xmls:
+            named = [i for i in xmls
+                     if _re.search(r"vote|table|npx|infotable", str(i["name"]), _re.I)]
+            pool = named or xmls
+            def _size(i):
+                try: return int(i.get("size") or 0)
+                except (TypeError, ValueError): return 0
+            return max(pool, key=_size)["name"]
+    except Exception as exc:  # noqa: BLE001 — fall back to the cover doc
+        print(f"    [warn] index.json fallback ({exc})")
+    return primary
+
+
 def download_filing(cik: str, filing: dict, dest: Path) -> Path:
-    """Download the primary document for one filing to dest. Returns the path."""
+    """Download the vote-table document for one filing. Returns the path."""
     cik_int = str(int(cik))  # archives path uses the un-padded integer CIK
     base = CONFIG["sec"]["archives_base"]
-    # For structured N-PX, EDGAR's primaryDocument is often an XSL-viewer path
-    # like 'xslN-PX_X01/primary_doc.xml'. Strip the viewer prefix so we fetch
-    # the RAW XML document, and flatten any remaining '/' so the local
-    # filename never points into a non-existent subdirectory.
+    # Strip EDGAR's XSL-viewer prefix ('xslN-PX_X01/...') to get the raw doc.
     primary = filing["primary_document"].split("/")[-1]
-    url = f"{base}/{cik_int}/{filing['accession_nodash']}/{primary}"
+    doc = _pick_vote_document(cik_int, filing["accession_nodash"], primary)
+    url = f"{base}/{cik_int}/{filing['accession_nodash']}/{doc}"
     resp = _get(url)
-    safe_name = f"{cik.zfill(10)}_{filing['accession']}_{primary}".replace("/", "_")
+    safe_name = f"{cik.zfill(10)}_{filing['accession']}_{doc}".replace("/", "_")
     out_path = dest / safe_name
     out_path.write_bytes(resp.content)
     return out_path
