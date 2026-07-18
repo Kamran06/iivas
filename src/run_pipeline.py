@@ -40,8 +40,14 @@ def main() -> int:
     from src.preprocessing import clean_votes
     from src.classification import rule_based, ml_classifier
 
+    from src.config_loader import CONFIG
+    flagship = CONFIG["sec"].get("scope_mode", "flagship") == "flagship"
+
     if not args.skip_acquire:
-        _stage("1/9 Resolve N-PX filer CIKs per family", filer_discovery.run)
+        if flagship:
+            print("Flagship scope — skipping full filer discovery.")
+        else:
+            _stage("1/9 Resolve N-PX filer CIKs per family", filer_discovery.run)
         _stage("2/9 Acquire N-PX filings from SEC EDGAR", edgar_downloader.run)
     else:
         print("Skipping discovery + acquisition (using existing data/raw).")

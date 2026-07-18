@@ -68,39 +68,51 @@ def fetch_submissions(cik: str) -> dict:
     return _get(url).json()
 
 
-def list_npx_accessions(submissions: dict) -> list[dict]:
-    """
-    Extract N-PX filings within the configured year window.
-
-    The 'recent' block is column-oriented (parallel arrays). For filers with
-    long histories EDGAR splits older filings into additional files listed
-    under submissions['filings']['files']; production code should page through
-    those too. We read 'recent' here, which covers the 2019-2024 window.
-    """
-    recent = submissions["filings"]["recent"]
-    rows = zip(
-        recent["form"],
-        recent["accessionNumber"],
-        recent["filingDate"],
-        recent["primaryDocument"],
-    )
-    out = []
+def _scan_block(block: dict, out: list[dict]) -> None:
+    """Append in-window N-PX rows from one column-oriented filings block."""
+    rows = zip(block.get("form", []), block.get("accessionNumber", []),
+               block.get("filingDate", []), block.get("primaryDocument", []))
     for form, accession, fdate, primary_doc in rows:
-        # Accept amendments too (N-PX/A); dedup happens downstream.
-        if form not in (FORM, f"{FORM}/A"):
+        if form not in (FORM, f"{FORM}/A"):  # amendments included; dedup later
             continue
         year = int(fdate[:4])
         if not (START <= year <= END):
             continue
-        out.append(
-            {
-                "accession": accession,
-                "accession_nodash": accession.replace("-", ""),
-                "filing_date": fdate,
-                "year": year,
-                "primary_document": primary_doc,
-            }
-        )
+        out.append({
+            "accession": accession,
+            "accession_nodash": accession.replace("-", ""),
+            "filing_date": fdate, "year": year,
+            "primary_document": primary_doc,
+        })
+
+
+def list_npx_accessions(submissions: dict) -> list[dict]:
+    """
+    Extract in-window N-PX filings, paging through EDGAR's older submission
+    files when needed.
+
+    The 'recent' block only holds the last ~1000 filings. High-volume fund
+    trusts (SPDR, iShares) file so many NPORT/497/485 documents that their
+    annual N-PX ages out of 'recent' into the additional files listed under
+    filings.files[].name. We scan 'recent' first, then only fetch older
+    pages while they can still contain filings in our year window (their
+    filingTo date is >= START), so we never over-download.
+    """
+    out: list[dict] = []
+    _scan_block(submissions["filings"]["recent"], out)
+
+    cik_padded = str(submissions.get("cik", "")).zfill(10)
+    for f in submissions["filings"].get("files", []):
+        try:
+            if int(str(f.get("filingTo", "9999"))[:4]) < START:
+                continue  # this page is entirely older than our window
+        except ValueError:
+            pass
+        try:
+            page = _get(f"https://data.sec.gov/submissions/{f['name']}").json()
+            _scan_block(page, out)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [warn] paging {f.get('name')}: {exc}")
     return out
 
 
@@ -154,21 +166,27 @@ def download_filing(cik: str, filing: dict, dest: Path) -> Path:
 
 def _load_resolved_filers() -> dict[str, list[str]]:
     """
-    Return {family_name: [cik, ...]} from filers_resolved.json (produced by
-    filer_discovery.py). Falls back to config seed_ciks with a loud warning,
-    because N-PX is filed by many fund trusts per family and seeds alone
-    under-cover the voting universe.
+    Return {family_name: [cik, ...]} to acquire.
+
+    scope_mode == 'flagship' (default): one verified representative trust per
+    manager from config — fast and free-tier-friendly. Otherwise use the full
+    discovered universe from filers_resolved.json (hours), falling back to
+    config seed_ciks.
     """
     import json as _json
+
+    if CONFIG["sec"].get("scope_mode", "flagship") == "flagship":
+        fam = {f["name"]: [f["flagship_cik"].zfill(10)]
+               for f in CONFIG["filers"] if f.get("flagship_cik")}
+        print(f"[scope] flagship mode — {len(fam)} trust(s): "
+              + ", ".join(f'{k}={v[0]}' for k, v in fam.items()))
+        return fam
 
     resolved_path = path("interim") / "filers_resolved.json"
     if resolved_path.exists():
         resolved = _json.loads(resolved_path.read_text())
-        return {fam: [e["cik"] for e in entities] for fam, entities in resolved.items()}
-
-    print("[warn] filers_resolved.json not found — run "
-          "`python -m src.data_acquisition.filer_discovery` first. "
-          "Falling back to config seed_ciks (coverage will be PARTIAL).")
+        return {fam: [e["cik"] for e in ent] for fam, ent in resolved.items()}
+    print("[warn] filers_resolved.json not found — falling back to seed_ciks.")
     return {f["name"]: [c.zfill(10) for c in f.get("seed_ciks", [])]
             for f in CONFIG["filers"]}
 
@@ -191,7 +209,14 @@ def run() -> None:
                 print(f"  [error] could not fetch submissions: {exc}")
                 continue
             filings = list_npx_accessions(subs)
-            print(f"  found {len(filings)} {FORM} filings in {START}-{END}")
+            cap = CONFIG["sec"].get("max_filings_per_cik")
+            if cap:
+                # Newest first, so the cap keeps the most recent seasons.
+                filings = sorted(filings, key=lambda x: x["filing_date"],
+                                 reverse=True)[:cap]
+            print(f"  found {len(filings)} {FORM} filings in {START}-{END} "
+                  f"(capped at {cap})" if cap else
+                  f"  found {len(filings)} {FORM} filings in {START}-{END}")
             for f in filings:
                 try:
                     p = download_filing(cik, f, filer_dir)

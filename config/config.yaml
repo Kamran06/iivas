@@ -24,6 +24,17 @@ sec:
   form_type: "N-PX"
   start_year: 2024
   end_year: 2025
+  # ---------------------------------------------------------------------
+  # Scope. "flagship" pulls ONE representative fund trust per manager
+  # (below) — fast, fits the free GitHub Actions + Supabase tier, and
+  # captures the bulk of each family's voting weight. "discover" pulls
+  # every trust via filer_discovery (hours; exceeds free limits).
+  # max_filings_per_cik caps filings per trust so one giant exhibit can't
+  # blow the run time or the 500MB DB. A trust files ~1 annual N-PX per
+  # season, so 4 comfortably covers 2024 + 2025 plus amendments.
+  # ---------------------------------------------------------------------
+  scope_mode: "flagship"
+  max_filings_per_cik: 4
 
 # ---------------------------------------------------------------------
 # Filers analysed.
@@ -44,13 +55,16 @@ sec:
 filers:
   - name: "Vanguard"
     name_patterns: ["(?i)\\bvanguard\\b"]
-    seed_ciks: ["0000036405"]       # VANGUARD INDEX FUNDS (verified)
+    flagship_cik: "0000036405"       # VANGUARD INDEX FUNDS (verified)
+    seed_ciks: ["0000036405"]
   - name: "BlackRock"
     name_patterns: ["(?i)\\bblackrock\\b", "(?i)\\bishares\\b"]
-    seed_ciks: ["0001100663", "0001761055"]  # iSHARES TRUST, BlackRock ETF Trust (verified)
+    flagship_cik: "0001100663"       # iSHARES TRUST (verified)
+    seed_ciks: ["0001100663", "0001761055"]
   - name: "State Street"
     name_patterns: ["(?i)\\bstate street\\b", "(?i)\\bspdr\\b", "(?i)\\bssga\\b"]
-    seed_ciks: []                    # populated by filer_discovery.py
+    flagship_cik: "0001064642"       # SPDR SERIES TRUST (verified via data.sec.gov)
+    seed_ciks: ["0001064642"]
 
 # ---------------------------------------------------------------------
 # Storage
