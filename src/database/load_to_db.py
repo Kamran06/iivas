@@ -1,11 +1,19 @@
 """
 Load the cleaned, classified votes into the normalized PostgreSQL schema.
 
-Strategy: upsert the dimensions (investors, industries, companies, proposals)
-to obtain surrogate keys, then bulk-insert the fact rows. Uses ON CONFLICT to
-stay idempotent so the loader can be re-run safely.
+Set-based and idempotent. Earlier versions upserted companies and proposals
+one row at a time with a RETURNING round-trip each — fine locally, but tens of
+thousands of round-trips over a remote (Supabase) pooler made the load the
+slowest stage by far. This version batches every insert and reads surrogate
+keys back with a single SELECT per dimension.
+
+Idempotency: companies use their existing UNIQUE(company_name, cusip);
+proposals get a deterministic natural key `proposal_uid` (added here via an
+"IF NOT EXISTS" migration) so re-runs de-duplicate instead of piling up rows.
 """
 from __future__ import annotations
+
+import hashlib
 
 import numpy as np
 import pandas as pd
@@ -14,112 +22,119 @@ from sqlalchemy import text
 from src.config_loader import path
 from src.database.db_connection import get_engine
 
-BUCKETS = ["Mega", "Large", "Mid", "Small", "Micro"]
+CHUNK = 5000
 
 
-def _bucket(mktcap) -> str | None:
-    if mktcap is None or (isinstance(mktcap, float) and np.isnan(mktcap)):
-        return None
-    b = mktcap / 1e9
-    if b >= 200: return "Mega"
-    if b >= 10:  return "Large"
-    if b >= 2:   return "Mid"
-    if b >= 0.3: return "Small"
-    return "Micro"
+def _uid(issuer_std: str, text_norm: str, year: int) -> str:
+    return hashlib.md5(f"{issuer_std}|{text_norm}|{year}".encode()).hexdigest()
 
 
-def _upsert_returning(conn, sql: str, params: dict) -> int:
-    return conn.execute(text(sql), params).scalar_one()
+def _executemany(conn, sql: str, rows: list[dict]) -> None:
+    stmt = text(sql)
+    for i in range(0, len(rows), CHUNK):
+        conn.execute(stmt, rows[i:i + CHUNK])
 
 
 def run() -> None:
     df = pd.read_parquet(path("interim") / "votes_classified.parquet")
+    df["proposal_uid"] = [
+        _uid(a, b, int(c)) for a, b, c in
+        zip(df["issuer_std"], df["proposal_text_norm"], df["filing_year"])
+    ]
     engine = get_engine()
 
     with engine.begin() as conn:
-        # --- investors ---
-        inv_ids: dict[str, int] = {}
-        for (name, cik), _ in df.groupby(["filer", "cik"]):
-            inv_ids[name] = _upsert_returning(conn, """
-                INSERT INTO investors (cik, investor_name)
-                VALUES (:cik, :name)
-                ON CONFLICT (cik) DO UPDATE SET investor_name = EXCLUDED.investor_name
-                RETURNING investor_id
-            """, {"cik": str(cik).zfill(10), "name": name})
+        # One-time idempotency migration: natural key + unique index on proposals.
+        conn.execute(text(
+            "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS proposal_uid VARCHAR(32)"))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_proposals_uid "
+            "ON proposals (proposal_uid)"))
 
-        # --- companies (industry left NULL here; enrich separately) ---
-        comp_ids: dict[str, int] = {}
-        comp_keys = df[["issuer_std", "issuer_name", "cusip", "ticker"]].drop_duplicates("issuer_std")
-        for _, r in comp_keys.iterrows():
-            comp_ids[r["issuer_std"]] = _upsert_returning(conn, """
-                INSERT INTO companies (company_name, cusip, ticker, market_cap_bucket)
-                VALUES (:name, :cusip, :ticker, :bucket)
-                ON CONFLICT (company_name, cusip) DO UPDATE SET ticker = EXCLUDED.ticker
-                RETURNING company_id
-            """, {
-                "name": r["issuer_name"] or r["issuer_std"],
-                "cusip": r["cusip"],
-                "ticker": r["ticker"],
-                "bucket": None,
-            })
+        # --- investors ---
+        inv_rows = [{"cik": str(c).zfill(10), "name": n}
+                    for (n, c), _ in df.groupby(["filer", "cik"])]
+        _executemany(conn, """
+            INSERT INTO investors (cik, investor_name) VALUES (:cik, :name)
+            ON CONFLICT (cik) DO UPDATE SET investor_name = EXCLUDED.investor_name
+        """, inv_rows)
+        inv_ids = {n: i for i, n in conn.execute(
+            text("SELECT investor_id, investor_name FROM investors")).all()}
+
+        # --- companies ---
+        comp_keys = df.drop_duplicates("issuer_std")[
+            ["issuer_std", "issuer_name", "cusip", "ticker"]]
+        comp_rows = [{"name": (r.issuer_name or r.issuer_std),
+                      "cusip": r.cusip, "ticker": r.ticker}
+                     for r in comp_keys.itertuples(index=False)]
+        _executemany(conn, """
+            INSERT INTO companies (company_name, cusip, ticker)
+            VALUES (:name, :cusip, :ticker)
+            ON CONFLICT (company_name, cusip) DO UPDATE SET ticker = EXCLUDED.ticker
+        """, comp_rows)
+        # Map issuer_std -> company_id via the same name we inserted under.
+        name_to_id = {n: i for i, n in conn.execute(
+            text("SELECT company_id, company_name FROM companies")).all()}
+        comp_ids = {r.issuer_std: name_to_id.get(r.issuer_name or r.issuer_std)
+                    for r in comp_keys.itertuples(index=False)}
 
         # --- proposals ---
-        prop_keys = df.drop_duplicates(
-            subset=["issuer_std", "proposal_text_norm", "filing_year"]
-        )
-        prop_ids: dict[tuple, int] = {}
-        for _, r in prop_keys.iterrows():
-            key = (r["issuer_std"], r["proposal_text_norm"], int(r["filing_year"]))
-            prop_ids[key] = _upsert_returning(conn, """
-                INSERT INTO proposals
-                    (company_id, proposal_year, proposal_text, proposal_sponsor,
-                     category, classification_method, management_recommendation)
-                VALUES (:company_id, :year, :text, :sponsor, :category, :method, :mgmt)
-                RETURNING proposal_id
-            """, {
-                "company_id": comp_ids[r["issuer_std"]],
-                "year": int(r["filing_year"]),
-                "text": r["proposal_text"],
-                "sponsor": r.get("proposal_sponsor"),
-                "category": r["category"],
-                "method": r.get("classification_method"),
-                "mgmt": r["management_recommendation"] if r["management_recommendation"] in ("For", "Against", "None") else None,
+        prop_keys = df.drop_duplicates("proposal_uid")
+        prop_rows = []
+        for r in prop_keys.itertuples(index=False):
+            rd = r._asdict()
+            mgmt = rd["management_recommendation"]
+            prop_rows.append({
+                "uid": rd["proposal_uid"],
+                "company_id": comp_ids[rd["issuer_std"]],
+                "year": int(rd["filing_year"]),
+                "text": rd["proposal_text"],
+                "sponsor": rd.get("proposal_sponsor")
+                if rd.get("proposal_sponsor") in ("Management", "Shareholder") else None,
+                "category": rd["category"],
+                "method": rd.get("classification_method"),
+                "mgmt": mgmt if mgmt in ("For", "Against", "None") else None,
             })
+        _executemany(conn, """
+            INSERT INTO proposals
+                (proposal_uid, company_id, proposal_year, proposal_text,
+                 proposal_sponsor, category, classification_method,
+                 management_recommendation)
+            VALUES (:uid, :company_id, :year, :text, :sponsor, :category,
+                    :method, :mgmt)
+            ON CONFLICT (proposal_uid) DO NOTHING
+        """, prop_rows)
+        prop_ids = {u: i for i, u in conn.execute(
+            text("SELECT proposal_id, proposal_uid FROM proposals "
+                 "WHERE proposal_uid IS NOT NULL")).all()}
 
-        # --- votes (fact): chunked executemany, not per-row round-trips.
-        #     A full Big-Three pull is millions of rows; row-by-row inserts
-        #     against a remote (Supabase) host would take hours.
-        vote_sql = text("""
+        # --- votes (fact) ---
+        vote_rows = []
+        for r in df.itertuples(index=False):
+            rd = r._asdict()
+            sm = rd["support_management"]
+            vote_rows.append({
+                "inv": inv_ids[rd["filer"]],
+                "comp": comp_ids[rd["issuer_std"]],
+                "prop": prop_ids[rd["proposal_uid"]],
+                "year": int(rd["filing_year"]),
+                "acc": rd.get("accession"),
+                "vote": rd["vote_cast"] if rd["vote_cast"] in
+                ("For", "Against", "Abstain", "Withhold", "Other") else None,
+                "shares": None if pd.isna(rd["shares_voted"]) else float(rd["shares_voted"]),
+                "sm": None if pd.isna(sm) else int(sm),
+            })
+        _executemany(conn, """
             INSERT INTO votes
                 (investor_id, company_id, proposal_id, vote_year, accession,
                  vote_cast, shares_voted, support_management)
             VALUES (:inv, :comp, :prop, :year, :acc, :vote, :shares, :sm)
             ON CONFLICT (investor_id, proposal_id, accession) DO NOTHING
-        """)
-        params: list[dict] = []
-        for r in df.itertuples(index=False):
-            rd = r._asdict()
-            key = (rd["issuer_std"], rd["proposal_text_norm"], int(rd["filing_year"]))
-            sm = rd["support_management"]
-            params.append({
-                "inv": inv_ids[rd["filer"]],
-                "comp": comp_ids[rd["issuer_std"]],
-                "prop": prop_ids[key],
-                "year": int(rd["filing_year"]),
-                "acc": rd.get("accession"),
-                "vote": rd["vote_cast"] if rd["vote_cast"] in ("For","Against","Abstain","Withhold","Other") else None,
-                "shares": None if pd.isna(rd["shares_voted"]) else float(rd["shares_voted"]),
-                "sm": None if pd.isna(sm) else int(sm),
-            })
+        """, vote_rows)
 
-        CHUNK = 5000
-        n = 0
-        for i in range(0, len(params), CHUNK):
-            conn.execute(vote_sql, params[i:i + CHUNK])   # executemany
-            n += len(params[i:i + CHUNK])
-            if n % 50000 < CHUNK:
-                print(f"  ...{n:,} vote rows staged")
-    print(f"Loaded {n:,} vote rows into PostgreSQL.")
+    print(f"Loaded {len(vote_rows):,} vote rows "
+          f"({len(prop_rows):,} proposals, {len(comp_rows):,} companies) "
+          f"into PostgreSQL.")
 
 
 if __name__ == "__main__":
