@@ -57,26 +57,37 @@ def main() -> int:
     _stage("5/9 Classify proposals (rules)", rule_based.run)
     _stage("6/9 Classify proposals (NLP residual)", ml_classifier.run)
 
-    if args.no_db:
-        print("\n--no-db set: skipping DB load and scoring. Pipeline stopped.")
-        return 0
-
-    from src.database import load_to_db
+    # ------------------------------------------------------------------
+    # RESULTS FIRST, DATABASE LAST. IIVAS scores, EDA tables and figures
+    # are computed entirely in-memory from votes_classified — they need no
+    # database. We produce them (and the workflow uploads them as an
+    # artifact) BEFORE touching Supabase, and the DB load is the final,
+    # NON-FATAL step. So a slow or failed database can never block or sink
+    # a run: you always get the results.
+    # ------------------------------------------------------------------
     from src.metrics import iivas
-    _stage("7/9 Load into PostgreSQL (Supabase)", load_to_db.run)
-    _stage("8/9 Compute IIVAS & refresh yearly_statistics", iivas.run)
+    _stage("7/9 Compute IIVAS scores", iivas.run)
 
-    # EDA + figures are non-fatal: a plotting failure should not sink a
-    # scheduled refresh whose main job is the DB load.
     def _analytics():
         from src.eda import exploratory
         from src.visualization import plots
         exploratory.run()
         plots.run()
     try:
-        _stage("9/9 EDA tables + figures", _analytics)
+        _stage("8/9 EDA tables + figures", _analytics)
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] analytics stage failed (non-fatal): {exc}")
+
+    if args.no_db:
+        print("\n--no-db set: skipping DB load. Results already written.")
+        return 0
+
+    # DB load last and non-fatal — the results above are already on disk.
+    try:
+        from src.database import load_to_db
+        _stage("9/9 Load into PostgreSQL (Supabase)", load_to_db.run)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] DB load failed (non-fatal — results still produced): {exc}")
 
     print("\n🎉 Pipeline complete.")
     return 0
