@@ -34,7 +34,8 @@ sec:
   # season, so 4 comfortably covers 2024 + 2025 plus amendments.
   # ---------------------------------------------------------------------
   scope_mode: "discover"        # "flagship" | "discover"
-  max_filings_per_cik: 2        # 2024 + 2025 annual N-PX per trust
+  max_filings_per_cik: 6        # effectively uncapped for the 2024-2026 window;
+                                # rescues trusts whose first 2 picks were 0-row filings
   # Cap trusts per family in discover mode. Because we KEEP ONLY shareholder-
   # sponsored proposals (analysis.shareholder_only), the database and analysis
   # stay tiny no matter how many trusts we ingest — so we can widen fund
@@ -85,6 +86,22 @@ filers:
     name_patterns: ["(?i)\\bjpmorgan\\b", "(?i)\\bj\\.?p\\.?\\s*morgan\\b"]
     flagship_cik: "0001217286"       # JPMorgan Trust I (verified, files 2025 N-PX)
     seed_ciks: ["0001217286", "0001592106"]
+  - name: "Fidelity"
+    name_patterns: ["(?i)\\bfidelity\\b"]
+    flagship_cik: "0000945908"       # FIDELITY COVINGTON TRUST (verified 2024-25 N-PX)
+    seed_ciks: ["0000945908", "0000035315"]
+  - name: "Invesco"
+    name_patterns: ["(?i)\\binvesco\\b"]
+    flagship_cik: "0001209466"       # INVESCO EXCHANGE-TRADED FUND TRUST (verified)
+    seed_ciks: ["0001209466", "0001378872"]
+  - name: "T. Rowe Price"
+    name_patterns: ["(?i)\\browe price\\b"]
+    flagship_cik: "0001012968"       # T. ROWE PRICE EQUITY FUNDS INC (verified)
+    seed_ciks: ["0001012968", "0000918294"]
+  - name: "Dimensional"
+    name_patterns: ["(?i)\\bdimensional\\b", "(?i)\\bDFA\\b"]
+    flagship_cik: "0000355437"       # DFA INVESTMENT DIMENSIONS GROUP INC (verified)
+    seed_ciks: ["0000355437", "0001816125"]
 
 # ---------------------------------------------------------------------
 # Storage
