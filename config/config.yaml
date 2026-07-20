@@ -39,7 +39,7 @@ sec:
   # sponsored proposals (analysis.shareholder_only), the database and analysis
   # stay tiny no matter how many trusts we ingest — so we can widen fund
   # coverage far beyond the single flagship. Raise as the run budget allows.
-  max_ciks_per_family: 15       # widened from 6 → ~45 trusts total (3 families)
+  max_ciks_per_family: 30       # widened further → ~80 trusts (VG30/BR30/SS20)
 
 # ---------------------------------------------------------------------
 # Analysis scope. The project's real signal lives in CONTESTED shareholder-
@@ -81,6 +81,10 @@ filers:
     name_patterns: ["(?i)\\bstate street\\b", "(?i)\\bspdr\\b", "(?i)\\bssga\\b"]
     flagship_cik: "0001064642"       # SPDR SERIES TRUST (verified via data.sec.gov)
     seed_ciks: ["0001064642"]
+  - name: "JP Morgan"
+    name_patterns: ["(?i)\\bjpmorgan\\b", "(?i)\\bj\\.?p\\.?\\s*morgan\\b"]
+    flagship_cik: "0001217286"       # JPMorgan Trust I (verified, files 2025 N-PX)
+    seed_ciks: ["0001217286", "0001592106"]
 
 # ---------------------------------------------------------------------
 # Storage
