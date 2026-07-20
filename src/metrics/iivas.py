@@ -75,8 +75,18 @@ def run() -> None:
     overall.to_csv(processed / "iivas_overall.csv", index=False)
 
     # 2) Per manager x category (ESG, Governance, Shareholder Rights, ...).
+    #    This is the PRIMARY lens: how each institution votes on each TYPE of
+    #    contested proposal. Far higher N than the exact-proposal matched cut,
+    #    and it maps directly onto the research questions (most ESG-supportive,
+    #    opposes executive pay, etc.). Matched (below) is kept only as a
+    #    strict robustness check.
     bycat = _rate_table(d, ["filer", "category"])
     bycat.to_csv(processed / "iivas_by_category.csv", index=False)
+    pct_grid = bycat.pivot(index="filer", columns="category",
+                           values="shareholder_support_pct")
+    n_grid = (bycat.pivot(index="filer", columns="category",
+                          values="contested_votes")
+              .fillna(0).astype(int))
 
     # 3) Matched sample: proposals every manager voted on (apples-to-apples).
     n_filers = d["filer"].nunique()
@@ -87,10 +97,14 @@ def run() -> None:
         "shareholder_support_pct", ascending=False) if len(matched) else overall.iloc[0:0]
     matched_tbl.to_csv(processed / "iivas_matched.csv", index=False)
 
-    print("=== Shareholder Support Rate — all contested votes ===")
+    print("=== Shareholder support % by proposal TYPE (manager x category) ===")
+    print(pct_grid.round(1).to_string())
+    print("\n=== N contested votes per cell (manager x category) ===")
+    print(n_grid.to_string())
+    print("\n=== Shareholder Support Rate — all contested votes (own pool) ===")
     print(overall.to_string(index=False))
-    print(f"\n=== Matched sample: {len(shared_keys):,} proposals voted by all "
-          f"{n_filers} managers ===")
+    print(f"\n=== Matched sample (robustness only): {len(shared_keys):,} proposals "
+          f"voted by all {n_filers} managers ===")
     print(matched_tbl.to_string(index=False))
     print(f"\nWrote overall / by-category / matched -> {processed}")
 
