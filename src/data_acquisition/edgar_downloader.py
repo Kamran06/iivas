@@ -182,10 +182,22 @@ def _load_resolved_filers() -> dict[str, list[str]]:
               + ", ".join(f'{k}={v[0]}' for k, v in fam.items()))
         return fam
 
+    cap = CONFIG["sec"].get("max_ciks_per_family")
     resolved_path = path("interim") / "filers_resolved.json"
     if resolved_path.exists():
         resolved = _json.loads(resolved_path.read_text())
-        return {fam: [e["cik"] for e in ent] for fam, ent in resolved.items()}
+        fam = {f: [e["cik"] for e in ent] for f, ent in resolved.items()}
+        if cap:
+            # Keep the flagship first (if present), then fill up to the cap so
+            # coverage widens beyond one trust without an unbounded pull.
+            flag = {x["name"]: x.get("flagship_cik") for x in CONFIG["filers"]}
+            for f in fam:
+                fc = (flag.get(f) or "").zfill(10)
+                ordered = ([fc] if fc in fam[f] else []) + [c for c in fam[f] if c != fc]
+                fam[f] = ordered[:cap]
+            print(f"[scope] discover mode — capped at {cap} trust(s)/family: "
+                  + ", ".join(f"{k}={len(v)}" for k, v in fam.items()))
+        return fam
     print("[warn] filers_resolved.json not found — falling back to seed_ciks.")
     return {f["name"]: [c.zfill(10) for c in f.get("seed_ciks", [])]
             for f in CONFIG["filers"]}
