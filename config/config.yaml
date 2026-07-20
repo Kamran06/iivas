@@ -33,8 +33,24 @@ sec:
   # blow the run time or the 500MB DB. A trust files ~1 annual N-PX per
   # season, so 4 comfortably covers 2024 + 2025 plus amendments.
   # ---------------------------------------------------------------------
-  scope_mode: "flagship"
-  max_filings_per_cik: 4
+  scope_mode: "discover"        # "flagship" | "discover"
+  max_filings_per_cik: 2        # 2024 + 2025 annual N-PX per trust
+  # Cap trusts per family in discover mode. Because we KEEP ONLY shareholder-
+  # sponsored proposals (analysis.shareholder_only), the database and analysis
+  # stay tiny no matter how many trusts we ingest — so we can widen fund
+  # coverage far beyond the single flagship. Raise as the run budget allows.
+  max_ciks_per_family: 15       # widened from 6 → ~45 trusts total (3 families)
+
+# ---------------------------------------------------------------------
+# Analysis scope. The project's real signal lives in CONTESTED shareholder-
+# sponsored proposals (~1% of all votes); the other ~99% are routine
+# management items every investor rubber-stamps ~99%, which drown the signal.
+# shareholder_only drops management-sponsored proposals right after
+# classification, so every downstream stage (score, DB, dashboard) operates
+# on the contested votes only. This is what makes wider fund coverage cheap.
+# ---------------------------------------------------------------------
+analysis:
+  shareholder_only: true
 
 # ---------------------------------------------------------------------
 # Filers analysed.
