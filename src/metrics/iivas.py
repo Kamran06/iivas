@@ -36,8 +36,15 @@ from src.config_loader import path
 def _prep(df: pd.DataFrame) -> pd.DataFrame:
     d = df[df["vote_cast"].isin(["For", "Against"])].copy()
     d["for_shareholder"] = (d["vote_cast"] == "For").astype(int)
+    # Loosened matched-sample key. The SAME contested proposal is usually
+    # worded slightly differently in each manager's N-PX, so exact-text
+    # matching under-counts true matches and shrinks the matched sample. We
+    # instead treat proposals of the same TYPE (category) at the same issuer
+    # in the same year as the same contested item. This materially grows the
+    # matched sample; the cost is occasionally merging two distinct same-type
+    # proposals at one issuer-year (rare, and flagged as a known limitation).
     d["prop_key"] = (d["issuer_std"].astype(str) + "|"
-                     + d["proposal_text_norm"].astype(str) + "|"
+                     + d["category"].astype(str) + "|"
                      + d["filing_year"].astype(str))
     return d
 
