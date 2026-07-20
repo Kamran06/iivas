@@ -40,7 +40,7 @@ sec:
   # sponsored proposals (analysis.shareholder_only), the database and analysis
   # stay tiny no matter how many trusts we ingest — so we can widen fund
   # coverage far beyond the single flagship. Raise as the run budget allows.
-  max_ciks_per_family: 30       # widened further → ~80 trusts (VG30/BR30/SS20)
+  max_ciks_per_family: 60       # capture nearly all trusts per family (don't skip data)
 
 # ---------------------------------------------------------------------
 # Analysis scope. The project's real signal lives in CONTESTED shareholder-
