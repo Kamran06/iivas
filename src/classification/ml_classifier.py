@@ -54,6 +54,21 @@ def build_pipeline() -> Pipeline:
     )
 
 
+def _apply_scope(df):
+    """Keep only contested (shareholder-sponsored) proposals when configured.
+
+    The project's real signal lives in shareholder proposals; the ~99% routine
+    management items are rubber-stamped and drown the signal. Dropping them here
+    also keeps the DB/analysis tiny so fund coverage can widen cheaply.
+    """
+    if CONFIG.get("analysis", {}).get("shareholder_only"):
+        before = len(df)
+        df = df[df["proposal_sponsor"] == "Shareholder"].copy()
+        print(f"[scope] shareholder_only: kept {len(df):,}/{before:,} "
+              f"votes on contested shareholder proposals.")
+    return df
+
+
 def run() -> None:
     interim = path("interim")
     models_dir = path("models")
@@ -64,7 +79,7 @@ def run() -> None:
 
     if labelled["category"].nunique() < 2 or len(labelled) < 50:
         print("Not enough rule-labelled data to train ML model; keeping rule labels.")
-        write_df(df, interim / "votes_classified.parquet")
+        write_df(_apply_scope(df), interim / "votes_classified.parquet")
         return
 
     X = labelled["proposal_text_norm"]
@@ -93,7 +108,7 @@ def run() -> None:
         residual.loc[accept, "classification_method"] = "ml"
         print(f"ML re-labelled {accept.sum():,} / {len(residual):,} residual 'Other' rows.")
 
-    out_df = pd.concat([labelled, residual], ignore_index=True)
+    out_df = _apply_scope(pd.concat([labelled, residual], ignore_index=True))
     out = interim / "votes_classified.parquet"
     write_df(out_df, out)
     print("Final category distribution:")
