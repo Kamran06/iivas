@@ -1,35 +1,39 @@
 """
-Section 5 -- rule-based proposal classifier.
+Section 5 — rule-based proposal classifier.
 
-Deterministic first pass that assigns each proposal to one of:
-  ESG, Executive Compensation, Board Governance, Shareholder Rights, Other.
+Deterministic first pass that assigns each proposal to one of the project
+owner's 7 categories:
+  Election of director proposals, Auditor ratification proposals,
+  Equity incentive plans, Executive comp proposals,
+  Environmental & social SHP proposals, Governance-related proposals (Mgmt),
+  Governance-related proposals (SH), Other.
 
 Rationale: a large share of N-PX proposals are boilerplate ("Elect Director
 X", "Ratify auditors", "Advisory vote on executive compensation"). Keyword
 rules classify these with near-perfect precision and zero training data, and
 the residual ambiguous text is handed to the ML classifier (ml_classifier.py).
-The ordering of rules matters: more specific categories are tested first.
+The ordering of rules matters: first match wins, so more specific categories
+are tested before broad catch-alls.
 
-2026-07 update: merged in a manual keyword->category pass the project owner
-did by hand (election/director, auditor ratification, equity incentive
-plans, expanded E&S terms, and management-governance boilerplate like
-merger/bylaw/charter/adjourn/share issuance). The owner's pass used a finer
-6-bucket taxonomy (splitting off Election-of-Director and Auditor-Ratification
-as their own categories, and tagging governance items Mgmt vs SH); per
-project decision those are folded into the existing 4 categories rather than
-expanding the schema, since proposal_sponsor already carries the Mgmt/SH
-split independently and the by-type grid is built around 4 columns. A few of
-the owner's broadest single-word entries (bare "equity", "stock", "amend",
-"incentive") were intentionally not added verbatim: they are common enough
-in unrelated proposal text that they would trade recall for a real drop in
-precision. They're captured instead as bounded phrases below.
+2026-07 update (v2): replaced the prior 4-category schema (ESG / Executive
+Compensation / Board Governance / Shareholder Rights) with the owner's full
+7-category taxonomy, used verbatim this time (including the broad single-word
+entries — bare "director", "equity", "stock", "amend", "compensation" — that
+were deliberately left out of the v1 merge). The owner explicitly split
+Governance-related proposals into Mgmt vs SH sub-categories per keyword,
+which is followed literally below rather than inferred from
+proposal_sponsor.
 
-Also fixed a pre-existing bug: several stem patterns (e.g. "declassif",
-"sustainab", "adjourn") sat inside a single \b(...)\b alternation, so the
-trailing \b required a word boundary immediately after the stem, which
-fails for real words like "declassification" or "sustainability" where a
-suffix follows. Fixed by appending \w* to stems so they absorb any suffix
-before the boundary check.
+Known precision trade-off, flagged rather than silently accepted: several of
+the owner's keywords are single common words ("director", "stock", "equity",
+"compensation") that appear inside a lot of unrelated proposal text (e.g.
+"board of directors" inside a bylaw amendment, "common stock" inside a
+governance item). Because rule order is first-match-wins and these live in
+early, high-priority categories (Election of director, Equity incentive
+plans), they will pull some proposals that are really Governance-related
+boilerplate into those buckets. This is the owner's taxonomy applied as
+given, not a bug — but it means Election of director / Equity incentive
+counts should be read as upper bounds, not precise.
 """
 from __future__ import annotations
 
@@ -42,46 +46,47 @@ from src.config_loader import path
 
 # Ordered (category, compiled-pattern) rules. First match wins.
 _RULES: list[tuple[str, re.Pattern]] = [
-    ("Executive Compensation", re.compile(
-        r"\b(say[\s-]?on[\s-]?pay|executive compensation|executive pay|"
-        r"advisory vote on (named )?executive|"
-        r"compensation of (the )?named executive|"
-        r"executive\w*.{0,25}compensation\w*|compensation\w*.{0,25}executive\w*|"
-        r"golden parachute|"
-        r"equity incentive plan\w*|equity incentive|stock option\w*|"
-        r"stock incentive plan\w*|omnibus (stock|incentive)\w*|"
-        r"repricing|clawback\w*|pay[\s-]?ratio|severance\w*)\b", re.I)),
+    ("Election of director proposals", re.compile(
+        r"\b(elect\w*|director\w*)\b", re.I)),
 
-    ("ESG", re.compile(
-        r"\b(climate|emission\w*|greenhouse|carbon|net[\s-]?zero|environmental|"
-        r"sustainab\w*|diversity|equity and inclusion|\bdei\b|human rights|"
-        r"political (contribution|spending|lobbying)\w*|lobbying|deforestation|"
-        r"water|plastic\w*|gender pay|racial equity|civil rights audit\w*|"
-        r"social|esg|food waste|health care|regenerative agriculture|"
-        r"greenwash\w*|discriminat\w*|disabilit\w*)\b", re.I)),
+    ("Auditor ratification proposals", re.compile(
+        r"\b(auditor\w*|ratif\w*|accounting firm\w*)\b", re.I)),
 
-    ("Board Governance", re.compile(
-        r"\b(elect\w*.{0,25}\bdirector\w*|re[\s-]?elect\w*|"
-        r"director nominee\w*|declassif\w*|classified board\w*|"
-        r"board (independence|diversity|size|structure)\w*|"
-        r"separate (the roles of )?chair\w*|independent chair\w*|lead director\w*|"
-        r"ratif\w* .*(auditor|accounting firm)\w*|accounting firm\w*|"
-        r"audit committee\w*|"
-        r"adjourn\w*|bylaw\w*|by[\s-]?law\w*|charter|merger\w*|"
-        r"scheme of arrangement\w*|"
-        r"authorized share capital|ordinary share issuance\w*|share issuance\w*|"
-        r"share repurchase\w*|renewal of share purchase\w*|"
-        r"receipt of reports and accounts|other business)\b", re.I)),
+    ("Equity incentive plans", re.compile(
+        r"\b(equity\w*|stock option\w*|incentive\w*|repricing|stock plan\w*|"
+        r"stock\w*|share increase\w*)\b", re.I)),
 
-    ("Shareholder Rights", re.compile(
-        r"\b(proxy access|special meeting\w*|written consent\w*|"
-        r"supermajority|poison pill\w*|rights plan\w*|cumulative voting|"
-        r"majority voting|one share one vote\w*|dual[\s-]?class|"
-        r"call a special meeting\w*|right to act by written consent\w*)\b", re.I)),
+    ("Executive comp proposals", re.compile(
+        r"\b(compensation\w*|say[\s-]?on[\s-]?pay|executive pay)\b", re.I)),
+
+    ("Environmental & social SHP proposals", re.compile(
+        r"\b(environment\w*|climate|social|sustainab\w*|esg|human rights|"
+        r"food waste|health care|greenhouse gas\w*|regenerative agriculture|"
+        r"plastic packaging|greenwash\w*|diversity and inclusion|"
+        r"emission reduction goal\w*|discriminat\w*|disabilit\w*)\b", re.I)),
+
+    ("Governance-related proposals (SH)", re.compile(
+        r"\b(special shareholder meeting\w*)\b", re.I)),
+
+    ("Governance-related proposals (Mgmt)", re.compile(
+        r"\b(adjourn\w*|bylaw\w*|by[\s-]?law provision\w*|charter\w*|"
+        r"board structure\w*|declassif\w*|merger\w*|"
+        r"authorized share capital\w*|ordinary share issuance\w*|"
+        r"renewal of share purchase\w*|amend\w*|scheme of arrangement\w*|"
+        r"share repurchase\w*|receipt of reports and accounts|"
+        r"share issuance\w*|other business|financial statement\w*)\b", re.I)),
 ]
 
-CATEGORIES = ["ESG", "Executive Compensation", "Board Governance",
-              "Shareholder Rights", "Other"]
+CATEGORIES = [
+    "Election of director proposals",
+    "Auditor ratification proposals",
+    "Equity incentive plans",
+    "Executive comp proposals",
+    "Environmental & social SHP proposals",
+    "Governance-related proposals (SH)",
+    "Governance-related proposals (Mgmt)",
+    "Other",
+]
 
 
 def classify_text(text: str) -> str:
